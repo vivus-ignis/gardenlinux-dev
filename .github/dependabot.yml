@@ -16,3 +16,13 @@ updates:
     versioning-strategy: "increase-if-necessary"
     reviewers:
       - "gardenlinux/garden-linux-maintainers"
+
+  - package-ecosystem: "terraform"
+    directory: "/tests/platformSetup/tofu"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "hashicorp/azurerm"
+    reviewers:
+      - "gardenlinux/garden-linux-maintainers"
+
