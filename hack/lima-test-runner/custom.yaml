@@ -29,7 +29,7 @@ provision:
     mkdir -p "$HOME"/.config/containers
     echo 'unqualified-search-registries=["docker.io"]' > "$HOME"/.config/containers/registries.conf
 
-    git clone https://github.com/gardenlinux/gardenlinux
+    git clone --branch=fwilhe-temp-lima-debug-demo https://github.com/gardenlinux/gardenlinux
     pip install --break-system-packages boolean.py pytest
 
     echo 'cd $HOME/gardenlinux/tests-ng; COLUMNS=120 python3 -m pytest -rA --tb=short --color=yes --system-booted --expected-users $(whoami)' > $HOME/run-tests.sh
