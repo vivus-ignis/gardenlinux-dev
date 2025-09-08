@@ -5,7 +5,7 @@ import pytest
 
 
 def has_ipv6():
-    """Helper function to assess whether the host has IPv6 connectivity at all."""
+    """Helper function to assess whether the host supports IPv6 at all."""
     try:
         sock = socket.create_connection(("2001:4860:4860::8888", 53), timeout=2)
         sock.close()
@@ -14,7 +14,6 @@ def has_ipv6():
         return False
 
 
-@pytest.mark.booted
 @pytest.mark.feature("cloud or metal")
 @pytest.mark.parametrize("host", ["8.8.8.8", "dns.google", "heise.de"])
 def test_ping_ipv4(shell, host):
@@ -31,7 +30,7 @@ def test_ping_ipv4(shell, host):
     assert "1 received" in result.stdout
 
 
-@pytest.mark.feature("cloud and metal")
+@pytest.mark.feature("cloud or metal")
 @pytest.mark.parametrize("host", ["2001:4860:4860::8888", "dns.google", "heise.de"])
 def test_ping_ipv6(shell, host):
     """Test if common IPv6 destinations are reachable."""
@@ -52,7 +51,7 @@ def test_ping_ipv6(shell, host):
     assert "1 received" in result.stdout
 
 
-@pytest.mark.booted(reason="nslookup requires full network stack in Azure")
+@pytest.mark.booted(reason="nslookup requires fully booted system")
 @pytest.mark.feature("azure")
 def test_hostname_azure(shell):
     """Test if hostname is resolvable in Azure DNS."""
