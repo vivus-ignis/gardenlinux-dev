@@ -7,6 +7,8 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+permissions: read-all # default for workflow
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -14,6 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         platform: [ kvm, aws, azure, ali, gcp, metal ]
+    permissions:
+      actions: write
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # pin@v5.0.0
         with:
