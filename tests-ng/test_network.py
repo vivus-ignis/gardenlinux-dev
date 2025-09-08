@@ -4,6 +4,20 @@ import socket
 import pytest
 
 
+@pytest.fixture(scope="session")
+def require_external_network():
+    """Skip tests if external UDP port 53 is unreachable."""
+    host = "8.8.8.8"
+    port = 53
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(1)
+        sock.sendto(b"\x00", (host, port))
+        sock.close()
+    except Exception:
+        pytest.skip("UDP port 53 unreachable; no external network available")
+
+
 def has_ipv6():
     """Helper function to assess whether the host supports IPv6 at all."""
     try:
@@ -15,40 +29,23 @@ def has_ipv6():
 
 
 @pytest.mark.feature("cloud or metal")
-@pytest.mark.parametrize("host", ["8.8.8.8", "dns.google", "heise.de"])
-def test_ping_ipv4(shell, host):
-    """Test if common IPv4 destinations are reachable."""
-    # Arrange
-    command = f"ping -c 1 {host}"
+@pytest.mark.parametrize(
+    "host", ["8.8.8.8", "dns.google.com", "heise.de", "2001:4860:4860::8888"]
+)
+def test_external_connection(shell, host, require_external_network):
+    """
+    Test if the given host is reachable over the network.
+    Uses DNS queries as ICMP is not always available.
+    """
+    if ":" in host:
+        cmd = f"dig -6 @{host} example.com +short"
+    else:
+        cmd = f"dig @{host} example.com +short"
 
-    # Test
-    result = shell(command, capture_output=True, ignore_exit_code=True)
+    result = shell(cmd, capture_output=True, ignore_exit_code=True)
 
-    # Assert
-    assert result.returncode == 0, f"IPv4 host {host} unreachable: {result.stderr}"
-    assert "1 packets transmitted" in result.stdout
-    assert "1 received" in result.stdout
-
-
-@pytest.mark.feature("cloud or metal")
-@pytest.mark.parametrize("host", ["2001:4860:4860::8888", "dns.google", "heise.de"])
-def test_ping_ipv6(shell, host):
-    """Test if common IPv6 destinations are reachable."""
-    if not has_ipv6():
-        pytest.skip("IPv6 not available in this environment")
-
-    # Arrange
-    command = f"ping6 -c 1 -W 5 {host}"
-
-    # Test
-    result = shell(command, capture_output=True, ignore_exit_code=True)
-
-    # Assert
-    assert (
-        result.returncode == 0
-    ), f"no '{result.stderr}' expected when running '{command}'"
-    assert "1 packets transmitted" in result.stdout
-    assert "1 received" in result.stdout
+    assert result.returncode == 0, f"Host {host} unreachable: {result.stderr}"
+    assert result.stdout.strip(), f"No response from {host}"
 
 
 @pytest.mark.booted(reason="nslookup requires fully booted system")
