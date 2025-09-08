@@ -23,7 +23,7 @@ def test_ping_ipv4(shell, host):
     command = f"ping -c 1 {host}"
 
     # Test
-    result = shell(command, capute_output=True, ignore_exit_code=True)
+    result = shell(command, capture_output=True, ignore_exit_code=True)
 
     # Assert
     assert result.returncode == 0, f"IPv4 host {host} unreachable: {result.stderr}"
@@ -52,7 +52,7 @@ def test_ping_ipv6(shell, host):
     assert "1 received" in result.stdout
 
 
-@pytest.maek.booted(reason="nslookup requires full network stack in Azure")
+@pytest.mark.booted(reason="nslookup requires full network stack in Azure")
 @pytest.mark.feature("azure")
 def test_hostname_azure(shell):
     """Test if hostname is resolvable in Azure DNS."""
