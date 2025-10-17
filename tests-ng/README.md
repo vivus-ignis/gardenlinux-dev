@@ -66,22 +66,44 @@ Before running the test framework, make sure the following dependencies are inst
 - `make`
 - `curl`
 - `jq`
+- `libxml2-utils`
 - `unzip`
 - `qemu`
 - `qemu-utils`
+- `socat`
+- `retry`
+
+If you plan to provision cloud resources, the cloud provider specific CLIs might be useful or even required:
+
+- `azure-cli`
+- `awscli`
+- `gcloud`
+- `aliyun`
+- `openstack-clients`
 
 #### Install on Debian based systems
 
 ```
 apt-get update
-apt-get install podman make curl jq unzip qemu swtpm
-
+apt-get install podman make curl jq libxml2-utils unzip qemu swtpm socat retry
+# install cloud provider CLIs
+apt-get install azure-cli awscli openstackclient # for GCP and ALI look at tip
 ```
+
+> [!TIP]
+> Checkout this cloud provider documentation on the CLIs:
+>   - [AWS](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+>   - [Azure](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?view=azure-cli-latest&pivots=apt)
+>   - [GCP](https://cloud.google.com/sdk/docs/install#deb)
+>   - [ALI](https://www.alibabacloud.com/help/en/cli/install-cli-on-linux)
+>   - [OpenStack](https://docs.openstack.org/newton/user-guide/common/cli-install-openstack-command-line-clients.html)
 
 #### Install on MacOS
 
 ```
-brew install coreutils bash gnu-sed gnu-getopt podman make curl jq unzip swtpm
+brew install coreutils bash gnu-sed gnu-getopt podman make curl jq libxml2 unzip swtpm socat retry gnupg
+# install cloud provider CLIs
+brew install azure-cli awscli gcloud-cli aliyun-cli openstackclient
 ```
 
 ### Basic Usage
@@ -128,6 +150,8 @@ The main entry point is `./test-ng` in the gardenlinux root directory (symlink t
     - azure: `/CommunityGalleries/gardenlinux-13e998fe-534d-4b0a-8a27-f16a73aef620/Images/gardenlinux-nvme-gen2/Versions/1592.12.0` (amd64)
 - `--only-cleanup` Only run `tofu destroy` for cloud setups.
 - `--image-requirements-file` Only needed with `--cloud-image`. Needs to point to a valid `*.requirements` file.
+- `--cloud-plan`: Only run `tofu plan` for cloud setups.
+  - QEMU VM: Ignores this flag.
 
 #### QEMU Specific Options
 
@@ -267,6 +291,9 @@ To connect to a running QEMU VM:
 
 # Run tests manually after login
 cd /run/gardenlinux-tests && ./run_tests --system-booted --allow-system-modifications --expected-users gardenlinux
+
+# Run tests with sudo if you wish to run tests that require root privileges
+cd /run/gardenlinux-tests && sudo ./run_tests --system-booted --allow-system-modifications --expected-users gardenlinux
 ```
 
 **Note**: Login to QEMU VMs (on a second shell) is only possible if `--ssh --skip-cleanup` is passed. SSHD is reachable on `127.0.0.1:2222` with the user `gardenlinux`. The QEMU VM will stay open in the shell that started and can be stopped with `ctrl + c`.
@@ -284,6 +311,9 @@ To connect to a cloud VM:
 
 # Run tests manually after login
 cd /run/gardenlinux-tests && ./run_tests --system-booted --allow-system-modifications --expected-users gardenlinux
+
+# Run tests with sudo if you wish to run tests that require root privileges
+cd /run/gardenlinux-tests && sudo ./run_tests --system-booted --allow-system-modifications --expected-users gardenlinux
 ```
 
 **Note**: Cloud VMs use the SSH user and IP address from the OpenTofu output.

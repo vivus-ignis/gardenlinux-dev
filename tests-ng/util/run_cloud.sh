@@ -59,6 +59,26 @@ image_basename="$(basename -- "$image")"
 image_name=${image_basename/.*/}
 user_data_script=
 tf_dir="$(realpath -- "$(dirname -- "${BASH_SOURCE[0]}")/tf")"
+login_cloud_sh="$(realpath -- "$(dirname -- "${BASH_SOURCE[0]}")/login_cloud.sh")"
+
+log_dir="$test_dist_dir/../log"
+log_file_log="cloud.test-ng.log"
+log_file_junit="cloud.test-ng.xml"
+
+mkdir -p "$log_dir"
+test_args+=("--junit-xml=/run/gardenlinux-tests/tests/log/$log_file_junit")
+
+# Extract test artifact name from image filename
+test_artifact="$(basename "$image" | sed 's/-[0-9].*\.raw$//')"
+test_type="cloud"
+test_namespace="test-ng"
+
+# Add pytest-metadata arguments
+test_args+=("--metadata" "Artifact" "$test_artifact")
+test_args+=("--metadata" "Type" "$test_type")
+test_args+=("--metadata" "Namespace" "$test_namespace")
+
+echo "📊  metadata: Artifact=$test_artifact, Type=$test_type, Namespace=$test_namespace"
 
 # arch, uefi, secureboot, tpm2 are set in $image.requirements
 arch=
@@ -83,6 +103,7 @@ source "$image_requirements"
 [ -n "$cloud" ]
 
 cleanup() {
+	get_logs || true
 	if ! ((skip_cleanup)); then
 		echo "⚙️  cleaning up cloud resources"
 		(
@@ -97,18 +118,25 @@ cleanup() {
 	fi
 }
 
+get_logs() {
+	"$login_cloud_sh" "$image_basename" "sudo cat /run/gardenlinux-tests/tests/log/$log_file_junit" >"$log_dir/$log_file_junit"
+}
+
 trap cleanup EXIT
 
 tofuenv_dir="$tf_dir/.tofuenv"
 PATH="$tofuenv_dir/bin:$PATH"
+# in case we pass a GITHUB_TOKEN, we can work around rate limiting
+export TOFUENV_GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 command -v tofuenv >/dev/null || {
-	git clone --depth=1 https://github.com/tofuutils/tofuenv.git "$tofuenv_dir"
+	retry -d "1,2,5,10,30" git clone --depth=1 https://github.com/tofuutils/tofuenv.git "$tofuenv_dir"
 	echo 'trust-tofuenv: yes' >"$tofuenv_dir/use-gpgv"
 }
+# go to tofu directory to automatically parse *.tf files
 pushd "$tf_dir"
-tofuenv install latest-allowed
+retry -d "1,2,5,10,30" tofuenv install latest-allowed
 popd
-tofu_version="$(tofuenv list | head -1 | cut -d' ' -f2)"
+tofu_version=$(find "$tf_dir/.tofuenv/versions" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | head -1)
 tofuenv use "$tofu_version"
 
 TF_CLI_CONFIG_FILE="$tf_dir/.terraformrc"
@@ -128,14 +156,10 @@ EOF
 if [ ! -f "${TOFU_PROVIDERS_CUSTOM}/terraform-provider-azurerm" ] || ! sha256sum -c "${TOFU_PROVIDERS_CUSTOM}/checksum.txt" >/dev/null 2>&1; then
 	echo "Downloading terraform-provider-azurerm"
 	mkdir -p "${TOFU_PROVIDERS_CUSTOM}"
-	curl -LO --create-dirs --output-dir "${TOFU_PROVIDERS_CUSTOM}" "${TOFU_PROVIDER_AZURERM_URL}"
+	retry -d "1,2,5,10,30" curl -LO --create-dirs --output-dir "${TOFU_PROVIDERS_CUSTOM}" "${TOFU_PROVIDER_AZURERM_URL}"
 	echo "$TOFU_PROVIDER_AZURERM_CHECKSUM ${TOFU_PROVIDERS_CUSTOM}/terraform-provider-azurerm" >"${TOFU_PROVIDERS_CUSTOM}/checksum.txt"
 	sha256sum -c "${TOFU_PROVIDERS_CUSTOM}/checksum.txt"
 	chmod +x "${TOFU_PROVIDERS_CUSTOM}/terraform-provider-azurerm"
-fi
-
-if ((only_cleanup)); then
-	exit 0 # triggers trap
 fi
 
 ssh_private_key_path="$HOME/.ssh/id_ed25519_gl"
@@ -160,6 +184,7 @@ done
 if ! mountpoint /run/gardenlinux-tests; then
 	exit 1
 fi
+mkdir -p /run/gardenlinux-tests/tests/log
 EOF
 
 if ((cloud_image)); then
@@ -185,21 +210,23 @@ image_requirements = {
 
 cloud_provider = "$cloud"
 
-provider_vars = {
-    ali = {
-      ssh_user = "admin"
-    }
-    aws = {
-        ssh_user = "admin"
-    }
-    gcp = {
-      gcp_project_id = "$GCP_PROJECT_ID"
-    }
-    openstack = {
-        ssh_user = "admin"
-    }
-}
+# provider_vars = {
+#     ali = {
+#     }
+#     aws = {
+#     }
+# 	azure = {
+# 	}
+# 	gcp = {
+# 	}
+#     openstack = {
+#     }
+# }
 EOF
+
+if ((only_cleanup)); then
+	exit 0 # triggers trap
+fi
 
 echo "⚙️  setting up cloud resources via OpenTofu"
 if ((cloud_plan)); then
@@ -218,7 +245,6 @@ fi
 if ! ((cloud_plan)); then
 	vm_ip="$(cd "${tf_dir}" && tofu output --raw vm_ip)"
 	ssh_user="$(cd "${tf_dir}" && tofu output --raw ssh_user)"
-	login_cloud_sh="$(realpath -- "$(dirname -- "${BASH_SOURCE[0]}")/login_cloud.sh")"
 
 	echo -n "⚙️  waiting for VM ($vm_ip) to accept ssh connections"
 	until "$login_cloud_sh" "$image_basename" true 2>/dev/null; do
@@ -232,8 +258,10 @@ if ! ((cloud_plan)); then
 			"--allow-system-modifications"
 			"--expected-users" "$ssh_user"
 		)
-		# wait for cloud-init to finish
-		"$login_cloud_sh" "$image_basename" sudo systemctl is-system-running --wait || true
-		"$login_cloud_sh" "$image_basename" sudo /run/gardenlinux-tests/run_tests "${test_args[*]@Q}"
+		(
+			# wait for cloud-init to finish
+			"$login_cloud_sh" "$image_basename" "sudo systemctl is-system-running --wait || true"
+			"$login_cloud_sh" "$image_basename" "sudo /run/gardenlinux-tests/run_tests ${test_args[*]@Q} 2>&1"
+		) | tee "$log_dir/$log_file_log"
 	fi
 fi

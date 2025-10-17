@@ -17,7 +17,7 @@ clean:
 .build:
 	mkdir .build
 
-.build/dist.tar.gz: util/build_dist.sh .build/runtime.tar.gz conftest.py $(wildcard plugins/*.py) $(wildcard test_*.py) $(wildcard */test_*.py) | .build
+.build/dist.tar.gz: util/build_dist.sh .build/runtime.tar.gz conftest.py $(wildcard plugins/*.py) $(wildcard test_*.py) $(wildcard */test_*.py) $(wildcard handlers/*.py) | .build
 	echo '🛠️  building test framework distribution'
 	./$< $(word 2,$^) $@
 
@@ -31,4 +31,4 @@ clean:
 
 .build/edk2-%: | .build
 	echo '⬇️  fetching EDK2 ($*)'
-	curl -sSLf "https://github.com/gardenlinux/edk2-build/releases/download/edk2-stable202505/edk2-$*" > $@
+	retry -d "1,2,5,10,30" curl -sSLf "https://github.com/gardenlinux/edk2-build/releases/download/edk2-stable202505/edk2-$*" > $@
