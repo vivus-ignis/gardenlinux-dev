@@ -16,7 +16,7 @@ on:
       python_lib_version:
         required: false
         type: string
-        default: "0.10.5"
+        default: "255-improve-caching-used-in-gh-actions"
         description: "Version of the python gardenlinux library to use"
       is_latest:
         default: false
@@ -42,23 +42,11 @@ jobs:
           sparse-checkout: |
             flavors.yaml
           sparse-checkout-cone-mode: false
-      - name: Install python-gardenlinux-lib
-        run: |
-          pip install https://github.com/gardenlinux/python-gardenlinux-lib/releases/download/${{ inputs.python_lib_version }}/gardenlinux-${{ inputs.python_lib_version }}-py3-none-any.whl
       - id: matrix
         name: Generate flavors matrix
-        shell: bash
-        run: |
-          FLAVORS=$(gl-flavors-parse --no-arch --json-by-arch --publish)
-          MATRIX=$(jq -nc \
-            --argjson flavors "$(echo $FLAVORS)" \
-            '{
-              include: (
-                $flavors | reduce (to_entries[]) as $item ([]; . + ($item.value | map({"arch": $item.key, "flavor": .})))
-              )
-            }'
-          )
-          echo "matrix=$MATRIX" | tee -a $GITHUB_OUTPUT
+        uses: gardenlinux/python-gardenlinux-lib/.github/actions/flavors_parse@${{ inputs.python_lib_version }}
+        with:
+          flags: "--no-arch --json-by-arch --publish"
 
   github_release:
     runs-on: ubuntu-24.04
@@ -77,8 +65,9 @@ jobs:
           submodules: true
           fetch-depth: 0
       - name: Install python-gardenlinux-lib
-        run: |
-          pip install https://github.com/gardenlinux/python-gardenlinux-lib/releases/download/${{ inputs.python_lib_version }}/gardenlinux-${{ inputs.python_lib_version }}-py3-none-any.whl
+        uses: gardenlinux/python-gardenlinux-lib/.github/actions/setup@${{ inputs.python_lib_version }}
+        with:
+          version: ${{inputs.python_lib_version}}
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # pin@v4
         with:
@@ -114,8 +103,9 @@ jobs:
         with:
           submodules: true
       - name: Install python-gardenlinux-lib
-        run: |
-          pip install https://github.com/gardenlinux/python-gardenlinux-lib/releases/download/${{ inputs.python_lib_version }}/gardenlinux-${{ inputs.python_lib_version }}-py3-none-any.whl
+        uses: gardenlinux/python-gardenlinux-lib/.github/actions/setup@${{ inputs.python_lib_version }}
+        with:
+          version: ${{inputs.python_lib_version}}
       - uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # pin@v4
         with:
           aws-region: ${{ secrets.AWS_REGION }}
