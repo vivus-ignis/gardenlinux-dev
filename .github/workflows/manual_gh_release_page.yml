@@ -44,7 +44,7 @@ jobs:
           sparse-checkout-cone-mode: false
       - id: matrix
         name: Generate flavors matrix
-        uses: gardenlinux/python-gardenlinux-lib/.github/actions/flavors_parse@${{ inputs.python_lib_version }}
+        uses: gardenlinux/python-gardenlinux-lib/.github/actions/flavors_parse@255-improve-caching-used-in-gh-actions
         with:
           flags: "--no-arch --json-by-arch --publish"
 
@@ -65,7 +65,7 @@ jobs:
           submodules: true
           fetch-depth: 0
       - name: Install python-gardenlinux-lib
-        uses: gardenlinux/python-gardenlinux-lib/.github/actions/setup@${{ inputs.python_lib_version }}
+        uses: gardenlinux/python-gardenlinux-lib/.github/actions/setup@255-improve-caching-used-in-gh-actions
         with:
           version: ${{inputs.python_lib_version}}
       - name: Configure AWS credentials
@@ -103,7 +103,7 @@ jobs:
         with:
           submodules: true
       - name: Install python-gardenlinux-lib
-        uses: gardenlinux/python-gardenlinux-lib/.github/actions/setup@${{ inputs.python_lib_version }}
+        uses: gardenlinux/python-gardenlinux-lib/.github/actions/setup@255-improve-caching-used-in-gh-actions
         with:
           version: ${{inputs.python_lib_version}}
       - uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # pin@v4
