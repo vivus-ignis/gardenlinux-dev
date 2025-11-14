@@ -16,7 +16,7 @@ on:
       python_lib_version:
         required: false
         type: string
-        default: "255-improve-caching-used-in-gh-actions"
+        default: "0.10.5"
         description: "Version of the python gardenlinux library to use"
       is_latest:
         default: false
