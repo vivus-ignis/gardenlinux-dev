@@ -1,0 +1,213 @@
+name: nightly (mockup)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-nightly
+  cancel-in-progress: true
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    name: Build (mockup)
+    runs-on: ubuntu-24.04
+    outputs:
+      flavors_matrix: ${{ steps.set_matrix.outputs.flavors_matrix }}
+      bare_flavors_matrix: ${{ steps.set_matrix.outputs.bare_flavors_matrix }}
+      version: ${{ steps.set_version.outputs.version }}
+    steps:
+      - name: Simulate build work
+        run: |
+          echo "Starting mockup build (attempt ${{ github.run_attempt }})..."
+          echo "Building Garden Linux nightly..."
+          sleep 2
+          echo "Compiling packages..."
+          sleep 2
+          echo "Build steps completed."
+
+      - name: Random failure (simulates flaky build)
+        run: |
+          RAND=$(( RANDOM % 3 ))
+          echo "Random value: $RAND (fail if 0)"
+          if [ "$RAND" -eq 0 ]; then
+            echo "Simulated build failure!"
+            exit 1
+          fi
+          echo "Build passed."
+
+      - name: Set output matrix
+        id: set_matrix
+        run: |
+          echo 'flavors_matrix={"include":[{"arch":"amd64","flavor":"kvm"},{"arch":"amd64","flavor":"metal"}]}' >> "$GITHUB_OUTPUT"
+          echo 'bare_flavors_matrix={"include":[{"arch":"amd64","flavor":"metal"}]}' >> "$GITHUB_OUTPUT"
+
+      - name: Set version
+        id: set_version
+        run: |
+          echo "version=mockup-$(date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+  build_retry:
+    needs: build
+    if: ${{ failure() && needs.build.result == 'failure' }}
+    name: "Retry checkpoint: Build (mockup)"
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Retry failed build
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const gitHubLib = await import("${{ github.workspace }}/.github/workflows/github.mjs");
+
+            const gitHubRef = "${{ github.head_ref == '' && github.ref_name || github.head_ref }}";
+            return await gitHubLib.dispatchRetryWorkflow(core, github.rest.actions, context, gitHubRef, 5);
+
+  test:
+    needs: build
+    name: Test (mockup)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Simulate test setup
+        run: |
+          echo "Starting mockup tests (attempt ${{ github.run_attempt }})..."
+          echo "Flavors matrix: ${{ needs.build.outputs.flavors_matrix }}"
+          echo "Setting up test environments..."
+          sleep 2
+
+      - name: Simulate chroot tests
+        run: |
+          echo "Running chroot tests..."
+          sleep 1
+          echo "chroot tests: OK"
+
+      - name: Simulate qemu tests
+        run: |
+          echo "Running qemu tests..."
+          sleep 1
+          echo "qemu tests: OK"
+
+      - name: Simulate cloud tests
+        run: |
+          echo "Running cloud tests..."
+          sleep 1
+          echo "cloud tests: OK"
+
+      - name: Random failure (simulates flaky tests)
+        run: |
+          RAND=$(( RANDOM % 3 ))
+          echo "Random value: $RAND (fail if 0)"
+          if [ "$RAND" -eq 0 ]; then
+            echo "Simulated test failure!"
+            exit 1
+          fi
+          echo "All tests passed."
+
+  test_retry:
+    needs: test
+    if: ${{ failure() && needs.test.result == 'failure' }}
+    name: "Retry checkpoint: Test (mockup)"
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Retry failed test
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const gitHubLib = await import("${{ github.workspace }}/.github/workflows/github.mjs");
+
+            const gitHubRef = "${{ github.head_ref == '' && github.ref_name || github.head_ref }}";
+            return await gitHubLib.dispatchRetryWorkflow(core, github.rest.actions, context, gitHubRef, 3);
+
+  upload_workflow_data:
+    needs: [build, test]
+    name: Store workflow data (mockup)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Store data in JSON file
+        run: |
+          jq -r --arg 'matrix' '${{ needs.build.outputs.flavors_matrix }}' --arg 'bare_matrix' '${{ needs.build.outputs.bare_flavors_matrix }}' -n '{
+            "id": ${{ github.run_id }},
+            "flavors_matrix": $matrix,
+            "bare_flavors_matrix": $bare_matrix,
+            "version": "${{ needs.build.outputs.version }}",
+            "original_workflow_name": "${{ github.workflow }}"
+          }' '.' > workflow_data.json
+          echo "Workflow data stored:"
+          cat workflow_data.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin@v7.0.1
+        with:
+          name: workflow-data
+          path: workflow_data.json
+          if-no-files-found: error
+
+  publish_ghcr:
+    needs: upload_workflow_data
+    name: Publish nightly to ghcr.io (mockup)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Simulate ghcr.io publish
+        run: |
+          echo "Publishing to ghcr.io/gardenlinux/nightly (mockup)..."
+          sleep 1
+          echo "Published successfully."
+
+  publish_s3:
+    needs: upload_workflow_data
+    name: Publish nightly to S3 (mockup)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Simulate S3 publish
+        run: |
+          echo "Publishing to S3 (mockup)..."
+          sleep 1
+          echo "Published successfully."
+
+  create_issue_on_publish_failure:
+    name: Create issue on publish/upload failure
+    needs:
+      - upload_workflow_data
+      - publish_ghcr
+      - publish_s3
+    if: |
+      ${{ always() &&
+          (needs.upload_workflow_data.result == 'failure' ||
+           needs.publish_ghcr.result == 'failure' ||
+           needs.publish_s3.result == 'failure') }}
+    uses: ./.github/workflows/nightly_create_issue.yml
+    with:
+      needs_context: ${{ toJson(needs) }}
+    permissions:
+      issues: write
+      actions: read
+      contents: read
+    secrets: inherit
+
+  create_issue_on_test_failure:
+    name: Create issue on test failure
+    needs:
+      - build
+      - test
+    if: ${{ always() && failure() && github.run_attempt == 3 }}
+    uses: ./.github/workflows/nightly_create_issue.yml
+    with:
+      needs_context: ${{ toJson(needs) }}
+    permissions:
+      issues: write
+      actions: read
+      contents: read
+    secrets: inherit
+
+  create_issue_on_build_failure:
+    name: Create issue on build failure
+    needs:
+      - build
+    if: ${{ always() && failure() && github.run_attempt == 5 }}
+    uses: ./.github/workflows/nightly_create_issue.yml
+    with:
+      needs_context: ${{ toJson(needs) }}
+    permissions:
+      issues: write
+      actions: read
+      contents: read
+    secrets: inherit
