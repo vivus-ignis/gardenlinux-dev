@@ -24,7 +24,7 @@ jobs:
 
       - name: Random failure (simulates flaky build)
         run: |
-          RAND=$(( RANDOM % 3 ))
+          RAND=$(( RANDOM % 2 ))
           echo "Random value: $RAND (fail if 0)"
           if [ "$RAND" -eq 0 ]; then
             echo "Simulated build failure!"
@@ -93,7 +93,7 @@ jobs:
 
       - name: Random failure (simulates flaky tests)
         run: |
-          RAND=$(( RANDOM % 3 ))
+          RAND=$(( RANDOM % 2 ))
           echo "Random value: $RAND (fail if 0)"
           if [ "$RAND" -eq 0 ]; then
             echo "Simulated test failure!"
